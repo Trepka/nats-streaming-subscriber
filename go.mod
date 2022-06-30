@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/go-chi/chi v1.5.4
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.6

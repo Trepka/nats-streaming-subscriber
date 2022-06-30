@@ -155,3 +155,8 @@ func AddNewOrder(db *sqlx.DB, order datastruct.Order) {
 		return
 	}
 }
+
+func (p *PostgressOrdersStorage) GetOrder(id string) (datastruct.Order, error) {
+	var order datastruct.Order
+	return order, nil
+}
