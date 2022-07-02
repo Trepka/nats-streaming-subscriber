@@ -1,11 +1,11 @@
 package main
 
 import (
-	"nats-streaming-subscriber/publisher/mocdata"
-	"nats-streaming-subscriber/subscriber/database"
+	"nats-streaming-subscriber/subscriber/server"
 )
 
+var port = "8080"
+
 func main() {
-	db := database.ConnectDB()
-	database.AddNewOrder(db.OrdersStorage, mocdata.TestOrder)
+	server.StartServer(port)
 }

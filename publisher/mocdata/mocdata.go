@@ -10,7 +10,7 @@ var TestOrder = datastruct.Order{
 	Entry:             "WBIL",
 	Delivery:          TestDelivery,
 	Payment:           TestPayment,
-	Items:             []datastruct.Item{TestItem},
+	Items:             []datastruct.Item{TestItem1, TestItem2},
 	Locale:            "en",
 	InternalSignature: "",
 	CustomerID:        "test",
@@ -44,7 +44,7 @@ var TestPayment = datastruct.Payment{
 	CustomFee:    0,
 }
 
-var TestItem = datastruct.Item{
+var TestItem1 = datastruct.Item{
 	ChartID:     9934930,
 	TrackNumber: "WBILMTESTTRACK",
 	Price:       453,
@@ -55,5 +55,19 @@ var TestItem = datastruct.Item{
 	TotalPrice:  317,
 	NmID:        2389212,
 	Brand:       "Vivienne Sabo",
+	Status:      202,
+}
+
+var TestItem2 = datastruct.Item{
+	ChartID:     342662,
+	TrackNumber: "WBILMTESTTRACK",
+	Price:       315,
+	Rid:         "asory84kshf87k",
+	Name:        "Sweet bubaleh",
+	Sale:        23,
+	Size:        "0",
+	TotalPrice:  456,
+	NmID:        5443632,
+	Brand:       "Faberlic",
 	Status:      202,
 }
