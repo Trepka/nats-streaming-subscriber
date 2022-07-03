@@ -1,9 +1,13 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"nats-streaming-subscriber/datastruct"
+	"nats-streaming-subscriber/subscriber/memcache"
+	"strconv"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -11,6 +15,7 @@ import (
 
 type PostgressOrdersStorage struct {
 	OrdersStorage *sqlx.DB
+	cache         memcache.Cache
 }
 
 const (
@@ -97,11 +102,13 @@ func ConnectDB() PostgressOrdersStorage {
 	db.MustExec(schema)
 
 	storage.OrdersStorage = db
+	storage.cache = *memcache.NewCache(5*time.Minute, 10*time.Minute)
+	storage.updateCache()
 	return storage
 }
 
-func AddNewOrder(db *sqlx.DB, order datastruct.Order) {
-	tx, err := db.Beginx()
+func (p *PostgressOrdersStorage) AddNewOrder(order datastruct.Order) {
+	tx, err := p.OrdersStorage.Beginx()
 	if err != nil {
 		log.Fatal("can't begin transaction")
 		return
@@ -155,15 +162,19 @@ func AddNewOrder(db *sqlx.DB, order datastruct.Order) {
 	}
 }
 
-func (p *PostgressOrdersStorage) GetOrder(id string) (datastruct.Order, error) {
-	var order datastruct.Order
+func (p *PostgressOrdersStorage) GetOrder(id string) (*datastruct.Order, error) {
+	order, ok := p.cache.Get(id)
+	if ok {
+		return order, nil
+	}
+	order = &datastruct.Order{}
 	var deliveryID int
 	var paymentID int
 	row := p.OrdersStorage.QueryRowx("SELECT order_uid, track_number, entry, delivery_id, payment_id, locale, internal_signature, customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard FROM orders WHERE order_id = $1", id)
 	err := row.Scan(&order.OrderUID, &order.TrackNumber, &order.Entry, &deliveryID, &paymentID, &order.Locale,
 		&order.InternalSignature, &order.CustomerID, &order.DeliveryService, &order.Shardkey, &order.SmID, &order.DateCreated, &order.OofShard)
 	if err != nil {
-		log.Fatalf("can't scan row %v", err)
+		return nil, errors.New("can't scan row")
 	}
 
 	var delivery datastruct.Delivery
@@ -190,5 +201,27 @@ func (p *PostgressOrdersStorage) GetOrder(id string) (datastruct.Order, error) {
 	}
 
 	order.Items = items
+	p.cache.Set(id, *order, 5*time.Minute)
 	return order, nil
+}
+
+func (p *PostgressOrdersStorage) updateCache() {
+	rows, err := p.OrdersStorage.Query(`SELECT order_id FROM orders;`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	var order_id int
+	for rows.Next() {
+		err := rows.Scan(&order_id)
+		if err != nil {
+			log.Fatal(err)
+		}
+		order, _ := p.GetOrder(strconv.Itoa(order_id))
+		p.cache.Set(strconv.Itoa(order_id), *order, 5*time.Minute)
+	}
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
 }

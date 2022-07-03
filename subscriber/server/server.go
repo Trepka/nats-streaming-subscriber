@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"log"
-	"nats-streaming-subscriber/datastruct"
 	"nats-streaming-subscriber/subscriber/database"
 	"net/http"
 	"strconv"
@@ -15,10 +14,9 @@ type Storage struct {
 	OrdersStorage database.PostgressOrdersStorage
 }
 
-func StartServer(port string) {
-	ordersDB := database.ConnectDB()
+func StartServer(port string, db database.PostgressOrdersStorage) {
 	storage := Storage{}
-	storage.OrdersStorage = ordersDB
+	storage.OrdersStorage = db
 
 	router := chi.NewRouter()
 	SetHandlers(storage, router)
@@ -36,10 +34,12 @@ func (s *Storage) GetOrder(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	order := datastruct.Order{}
-	order, err = s.OrdersStorage.GetOrder(strconv.Itoa(int(id)))
+
+	order, err := s.OrdersStorage.GetOrder(strconv.Itoa(int(id)))
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 	err = json.NewEncoder(w).Encode(order)
 	if err != nil {

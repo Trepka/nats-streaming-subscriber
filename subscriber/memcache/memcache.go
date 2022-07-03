@@ -11,7 +11,7 @@ type Cache struct {
 	sync.RWMutex
 	defaultExpiration time.Duration
 	cleanupInterval   time.Duration
-	items             map[int]Item
+	items             map[string]Item
 }
 
 type Item struct {
@@ -21,7 +21,7 @@ type Item struct {
 }
 
 func NewCache(defaultExpiration, cleanupInterval time.Duration) *Cache {
-	items := make(map[int]Item)
+	items := make(map[string]Item)
 
 	cache := Cache{
 		items:             items,
@@ -36,7 +36,7 @@ func NewCache(defaultExpiration, cleanupInterval time.Duration) *Cache {
 	return &cache
 }
 
-func (c *Cache) Set(key int, value datastruct.Order, duration time.Duration) {
+func (c *Cache) Set(key string, value datastruct.Order, duration time.Duration) {
 	var expiration int64
 
 	if duration == 0 {
@@ -58,7 +58,7 @@ func (c *Cache) Set(key int, value datastruct.Order, duration time.Duration) {
 	}
 }
 
-func (c *Cache) Get(key int) (*datastruct.Order, bool) {
+func (c *Cache) Get(key string) (*datastruct.Order, bool) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -77,7 +77,7 @@ func (c *Cache) Get(key int) (*datastruct.Order, bool) {
 	return &item.Value, true
 }
 
-func (c *Cache) Delete(key int) error {
+func (c *Cache) Delete(key string) error {
 	c.Lock()
 
 	defer c.Unlock()
@@ -107,7 +107,7 @@ func (c *Cache) GC() {
 	}
 }
 
-func (c *Cache) expiredKeys() (keys []int) {
+func (c *Cache) expiredKeys() (keys []string) {
 
 	c.RLock()
 
@@ -122,7 +122,7 @@ func (c *Cache) expiredKeys() (keys []int) {
 	return
 }
 
-func (c *Cache) clearItems(keys []int) {
+func (c *Cache) clearItems(keys []string) {
 
 	c.Lock()
 

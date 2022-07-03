@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"nats-streaming-subscriber/datastruct"
+	"nats-streaming-subscriber/subscriber/database"
+	"nats-streaming-subscriber/subscriber/server"
 	"os"
 	"os/signal"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/nats-io/stan.go"
 	"github.com/nats-io/stan.go/pb"
 )
+
+var port = "8080"
 
 var usageStr = `
 Usage: stan-sub [options] <subject>
@@ -36,20 +40,8 @@ Subscription Options:
 	--unsub                          Unsubscribe the durable on exit
 `
 
-// NOTE: Use tls scheme for TLS, e.g. stan-sub -s tls://demo.nats.io:4443 foo
 func usage() {
 	log.Fatalf(usageStr)
-}
-
-func printMsg(m *stan.Msg, i int) {
-	var order datastruct.Order
-	err := json.Unmarshal(m.MsgProto.Data, &order)
-	if err != nil {
-		fmt.Println("Can;t unmarshal the byte array")
-		return
-	}
-	spew.Dump(order)
-	// log.Printf("[#%d] Received: %s\n", i, m)
 }
 
 func main() {
@@ -138,11 +130,21 @@ func main() {
 		}
 		startOpt = stan.StartAtTimeDelta(ago)
 	}
+	db := database.ConnectDB()
+	go server.StartServer(port, db)
 
 	subj, i := args[0], 0
 	mcb := func(msg *stan.Msg) {
+		fmt.Println("asda")
 		i++
-		printMsg(msg, i)
+		var order datastruct.Order
+		err := json.Unmarshal(msg.MsgProto.Data, &order)
+		if err != nil {
+			fmt.Println("Can't unmarshal the byte array")
+			return
+		}
+		spew.Dump(order)
+		db.AddNewOrder(order)
 	}
 
 	sub, err := sc.QueueSubscribe(subj, qgroup, mcb, startOpt, stan.DurableName(durable))
@@ -174,4 +176,5 @@ func main() {
 		}
 	}()
 	<-cleanupDone
+
 }
