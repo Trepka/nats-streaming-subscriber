@@ -113,52 +113,74 @@ func (p *PostgressOrdersStorage) AddNewOrder(order datastruct.Order) {
 		log.Fatal("can't begin transaction")
 		return
 	}
-
-	var deliveryID int
-	err = tx.QueryRowx("INSERT INTO deliveries (name, phone, zip, city, address, region, email) Values ($1, $2, $3, $4, $5, $6, $7) RETURNING delivery_id", order.Delivery.Name,
-		order.Delivery.Phone, order.Delivery.Zip, order.Delivery.City, order.Delivery.Address, order.Delivery.Region, order.Delivery.Email).Scan(&deliveryID)
-	if err != nil {
-		tx.Rollback()
-		log.Fatal("delivery data error")
-		return
-	}
-
-	var paymentID int
-	err = tx.QueryRowx("INSERT INTO payments (transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, good_total, custom_fee) Values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING payment_id",
-		order.Payment.Transaction, order.Payment.RequestID, order.Payment.Currency, order.Payment.Provider, order.Payment.Amount, order.Payment.PaymentDT, order.Payment.Bank,
-		order.Payment.DeliveryCost, order.Payment.GoodsTotal, order.Payment.CustomFee).Scan(&paymentID)
-	if err != nil {
-		tx.Rollback()
-		fmt.Println(err)
-		return
-	}
-
-	var orderID int
-	err = tx.QueryRowx("INSERT INTO orders (order_uid, track_number, entry, delivery_id, payment_id, locale, internal_signature, customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard) Values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING order_id",
-		order.OrderUID, order.TrackNumber, order.Entry, deliveryID, paymentID, order.Locale, order.InternalSignature, order.CustomerID, order.DeliveryService,
-		order.Shardkey, order.SmID, order.DateCreated, order.OofShard).Scan(&orderID)
-	if err != nil {
-		tx.Rollback()
-		fmt.Println(err)
-		log.Fatal("order data error")
-		return
-	}
+	deliveryID := insertDelivery(tx, order)
+	paymentID := insertPayment(tx, order)
+	orderID := insertOrder(tx, order, deliveryID, paymentID)
 
 	for i := 0; i < len(order.Items); i++ {
-		_, err = tx.Exec("INSERT INTO items (order_id, chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-			orderID, order.Items[i].ChartID, order.Items[i].TrackNumber, order.Items[i].Price, order.Items[i].Rid, order.Items[i].Name, order.Items[i].Sale, order.Items[i].Size,
-			order.Items[i].TotalPrice, order.Items[i].NmID, order.Items[i].Brand, order.Items[i].Status)
-		if err != nil {
-			tx.Rollback()
-			log.Fatal("insert item error")
-			return
-		}
+		insertItem(tx, order.Items[i], orderID)
+
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Fatal("can't commit data to database")
+		log.Println("can't commit data to database")
 		return
+	}
+}
+
+func insertDelivery(tx *sqlx.Tx, order datastruct.Order) int {
+	var deliveryID int
+	queryStr := `INSERT INTO deliveries (name, phone, zip, city, address, region, email)
+	 			Values ($1, $2, $3, $4, $5, $6, $7) RETURNING delivery_id;`
+	err := tx.QueryRowx(queryStr, order.Delivery.Name, order.Delivery.Phone,
+		order.Delivery.Zip, order.Delivery.City, order.Delivery.Address,
+		order.Delivery.Region, order.Delivery.Email).Scan(&deliveryID)
+	if err != nil {
+		tx.Rollback()
+		log.Println("can't insert delivery data")
+	}
+	return deliveryID
+}
+
+func insertPayment(tx *sqlx.Tx, order datastruct.Order) int {
+	var paymentID int
+	queryStr := `INSERT INTO payments 
+				(transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, good_total, custom_fee) 
+				Values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING payment_id;`
+	err := tx.QueryRowx(queryStr, order.Payment.Transaction, order.Payment.RequestID, order.Payment.Currency,
+		order.Payment.Provider, order.Payment.Amount, order.Payment.PaymentDT, order.Payment.Bank,
+		order.Payment.DeliveryCost, order.Payment.GoodsTotal, order.Payment.CustomFee).Scan(&paymentID)
+	if err != nil {
+		tx.Rollback()
+		log.Println("can't insert payment data")
+	}
+	return paymentID
+}
+
+func insertOrder(tx *sqlx.Tx, order datastruct.Order, deliveryID int, paymentID int) int {
+	var orderID int
+	queryStr := `INSERT INTO orders (order_uid, track_number, entry, delivery_id, payment_id, locale, 
+				internal_signature, customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard) 
+				Values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING order_id;`
+	err := tx.QueryRowx(queryStr, order.OrderUID, order.TrackNumber, order.Entry, deliveryID, paymentID,
+		order.Locale, order.InternalSignature, order.CustomerID, order.DeliveryService,
+		order.Shardkey, order.SmID, order.DateCreated, order.OofShard).Scan(&orderID)
+	if err != nil {
+		tx.Rollback()
+		log.Println("can't insert order: ", err)
+	}
+	return orderID
+}
+
+func insertItem(tx *sqlx.Tx, item datastruct.Item, orderID int) {
+	queryStr := `INSERT INTO items (order_id, chrt_id, track_number, price, rid, name, sale, size, total_price, nm_id, brand, status)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
+	_, err := tx.Exec(queryStr, orderID, item.ChartID, item.TrackNumber, item.Price,
+		item.Rid, item.Name, item.Sale, item.Size, item.TotalPrice, item.NmID, item.Brand, item.Status)
+	if err != nil {
+		tx.Rollback()
+		log.Println("can't insert item: ", err)
 	}
 }
 
