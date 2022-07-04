@@ -5,11 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"nats-streaming-subscriber/publisher/mocdata"
 	"os"
 	"sync"
 	"time"
-
-	"nats-streaming-subscriber/publisher/mocdata"
 
 	nats "github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
@@ -83,7 +82,7 @@ func main() {
 	defer sc.Close()
 
 	subj := "foo"
-	msg, err := json.Marshal(mocdata.TestOrder)
+	msg, err := json.Marshal(mocdata.GenerateOrder())
 	if err != nil {
 		log.Fatal("marshal struct error")
 	}

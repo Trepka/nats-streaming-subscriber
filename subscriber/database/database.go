@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS payments(
 CREATE TABLE IF NOT EXISTS orders(
 	order_id INT GENERATED ALWAYS AS IDENTITY,
 	order_uid TEXT UNIQUE,
-	track_number TEXT UNIQUE,
+	track_number TEXT,
 	entry TEXT NOT NULL,
 	delivery_id INT REFERENCES deliveries ON DELETE CASCADE,
 	payment_id INT REFERENCES payments ON DELETE CASCADE,

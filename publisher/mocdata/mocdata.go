@@ -1,6 +1,7 @@
 package mocdata
 
 import (
+	"math/rand"
 	"nats-streaming-subscriber/datastruct"
 )
 
@@ -70,4 +71,20 @@ var TestItem2 = datastruct.Item{
 	NmID:        5443632,
 	Brand:       "Faberlic",
 	Status:      202,
+}
+
+func GenerateOrder() datastruct.Order {
+	TestOrder.OrderUID = RandStringBytes(19)
+	TestOrder.Payment.Transaction = RandStringBytes(19)
+	return TestOrder
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
